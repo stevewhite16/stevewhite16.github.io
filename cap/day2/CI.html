@@ -1,0 +1,146 @@
+<style>
+#ci-root{color:var(--p);font-family:var(--font, ui-sans-serif, system-ui, sans-serif);}
+#ci-root svg{display:block;width:100%;height:auto;}
+#ci-root .ctl{display:flex;gap:10px;align-items:center;margin:14px 0 10px;flex-wrap:wrap;}
+#ci-root button{font:inherit;font-size:13px;padding:7px 14px;border-radius:8px;border:1px solid var(--t);background:transparent;color:var(--p);cursor:pointer;}
+#ci-root button:hover{border-color:#378ADD;color:#378ADD;}
+#ci-root .sliderrow{display:flex;gap:12px;align-items:center;margin-bottom:14px;}
+#ci-root .lbl{font-size:13px;color:var(--t);white-space:nowrap;}
+#ci-root input[type=range]{flex:1;accent-color:#378ADD;min-width:120px;}
+#ci-root .val{font-size:14px;font-variant-numeric:tabular-nums;min-width:48px;text-align:right;}
+#ci-root .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 18px;}
+#ci-root .cell{display:flex;flex-direction:column;gap:2px;}
+#ci-root .k{font-size:11.5px;color:var(--t);}
+#ci-root .v{font-size:15px;font-variant-numeric:tabular-nums;}
+#ci-root .rej{color:#D85A30;font-weight:600;}
+#ci-root .keep{color:#1D9E75;font-weight:600;}
+</style>
+
+<div id="ci-root">
+  <svg id="plot" viewBox="0 0 680 300" role="img" aria-label="A bell curve for a candidate null value slides along a fixed axis while a vertical line marks the observed difference of negative 2. Candidates whose rejection tails do not contain the observed value are painted onto a track below the axis, building up the confidence interval."></svg>
+  <div class="ctl">
+    <button id="sweep">Sweep all candidates</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="sliderrow">
+    <span class="lbl">candidate H<sub>0</sub></span>
+    <input id="mu" type="range" min="-7" max="3" step="0.1" value="0">
+    <span class="val" id="muval">0.0</span>
+  </div>
+  <div class="readout">
+    <div class="cell"><span class="k">z</span><span class="v" id="zval">—</span></div>
+    <div class="cell"><span class="k">two-sided p</span><span class="v" id="pval">—</span></div>
+    <div class="cell"><span class="k">verdict at α = 0.05</span><span class="v" id="verdict">—</span></div>
+    <div class="cell"><span class="k">not rejected so far</span><span class="v" id="acc">—</span></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const VMIN=-11, VMAX=7, X0=50, X1=630, K=(X1-X0)/(VMAX-VMIN);
+  const BASE=250, PEAK=160, SE=1.5620, OBS=-2, ZC=1.959964;
+  const CMIN=-7, CMAX=3, STEP=0.1, N=Math.round((CMAX-CMIN)/STEP)+1;
+  const visited=new Array(N).fill(false);
+
+  const px=v=>X0+(v-VMIN)*K;
+  const py=(v,mu)=>BASE-PEAK*Math.exp(-0.5*Math.pow((v-mu)/SE,2));
+  const rejected=c=>Math.abs((OBS-c)/SE)>ZC;
+
+  function normCdf(z){
+    const t=1/(1+0.2316419*Math.abs(z));
+    const d=0.3989423*Math.exp(-z*z/2);
+    const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+    return z>0?1-p:p;
+  }
+
+  function tail(mu,lo,hi){
+    const pts=[];
+    for(let z=lo;z<=hi+1e-9;z+=0.05){
+      const v=mu+z*SE;
+      if(v<VMIN||v>VMAX) continue;
+      pts.push([px(v),py(v,mu)]);
+    }
+    if(pts.length<2) return "";
+    let d="M"+pts[0][0].toFixed(1)+","+BASE;
+    pts.forEach(p=>d+="L"+p[0].toFixed(1)+","+p[1].toFixed(1));
+    d+="L"+pts[pts.length-1][0].toFixed(1)+","+BASE+"Z";
+    return d;
+  }
+
+  function render(mu){
+    const pts=[];
+    for(let z=-3.3;z<=3.3001;z+=0.1){
+      const v=mu+z*SE;
+      if(v<VMIN||v>VMAX) continue;
+      pts.push(px(v).toFixed(1)+","+py(v,mu).toFixed(1));
+    }
+    let s="";
+
+    s+='<path d="'+tail(mu,-3.3,-ZC)+'" fill="#D85A30" fill-opacity="0.3"/>';
+    s+='<path d="'+tail(mu,ZC,3.3)+'" fill="#D85A30" fill-opacity="0.3"/>';
+    s+='<polyline points="'+pts.join(" ")+'" fill="none" stroke="#378ADD" stroke-width="2" stroke-linejoin="round"/>';
+    s+='<line x1="'+px(mu).toFixed(1)+'" y1="'+(BASE-PEAK+4)+'" x2="'+px(mu).toFixed(1)+'" y2="'+BASE+'" stroke="var(--t)" stroke-width="1" stroke-dasharray="3 3" opacity="0.65"/>';
+
+    const ox=px(OBS).toFixed(1);
+    s+='<line x1="'+ox+'" y1="44" x2="'+ox+'" y2="'+BASE+'" stroke="#D85A30" stroke-width="1.75"/>';
+    s+='<text x="'+ox+'" y="32" text-anchor="middle" font-size="14" font-weight="500" fill="var(--p)">observed difference = -2</text>';
+
+    s+='<line x1="40" y1="'+BASE+'" x2="640" y2="'+BASE+'" stroke="var(--t)" stroke-width="0.5" opacity="0.6"/>';
+    for(let v=-10;v<=6;v+=2){
+      s+='<line x1="'+px(v).toFixed(1)+'" y1="'+BASE+'" x2="'+px(v).toFixed(1)+'" y2="'+(BASE+5)+'" stroke="var(--t)" stroke-width="0.5" opacity="0.6"/>';
+      s+='<text x="'+px(v).toFixed(1)+'" y="268" text-anchor="middle" font-size="12" fill="var(--t)">'+v+'</text>';
+    }
+
+    s+='<rect x="'+px(CMIN).toFixed(1)+'" y="282" width="'+((CMAX-CMIN)*K).toFixed(1)+'" height="10" rx="3" fill="var(--t)" fill-opacity="0.1"/>';
+    const w=(STEP*K)+0.6;
+    for(let i=0;i<N;i++){
+      if(!visited[i]) continue;
+      const c=CMIN+i*STEP;
+      if(rejected(c)) continue;
+      s+='<rect x="'+(px(c)-w/2).toFixed(1)+'" y="282" width="'+w.toFixed(1)+'" height="10" fill="#1D9E75" fill-opacity="0.55"/>';
+    }
+    s+='<text x="170" y="291" text-anchor="end" font-size="12" fill="var(--t)">candidates not rejected</text>';
+    s+='<path d="M'+(px(mu)-4).toFixed(1)+',278L'+(px(mu)+4).toFixed(1)+',278L'+px(mu).toFixed(1)+',272Z" fill="var(--p)"/>';
+
+    document.getElementById("plot").innerHTML=s;
+  }
+
+  function update(mu){
+    const i=Math.round((mu-CMIN)/STEP);
+    if(i>=0&&i<N) visited[i]=true;
+    render(mu);
+    const z=(OBS-mu)/SE, p=2*normCdf(-Math.abs(z));
+    document.getElementById("muval").textContent=mu.toFixed(1);
+    document.getElementById("zval").textContent=z.toFixed(2);
+    document.getElementById("pval").textContent=p<0.0001?"< 0.0001":p.toFixed(4);
+    const vd=document.getElementById("verdict");
+    if(rejected(mu)){vd.textContent="reject";vd.className="v rej";}
+    else{vd.textContent="do not reject";vd.className="v keep";}
+    let lo=null,hi=null;
+    for(let k=0;k<N;k++){
+      if(!visited[k]) continue;
+      const c=CMIN+k*STEP;
+      if(rejected(c)) continue;
+      if(lo===null||c<lo) lo=c;
+      if(hi===null||c>hi) hi=c;
+    }
+    document.getElementById("acc").textContent=(lo===null)?"none yet":lo.toFixed(1)+" to "+hi.toFixed(1);
+  }
+
+  const sl=document.getElementById("mu");
+  sl.addEventListener("input",()=>update(parseFloat(sl.value)));
+  document.getElementById("reset").addEventListener("click",()=>{
+    visited.fill(false); sl.value="0"; update(0);
+  });
+  document.getElementById("sweep").addEventListener("click",()=>{
+    let i=0;
+    const t=setInterval(()=>{
+      const c=CMIN+i*STEP;
+      sl.value=c.toFixed(1);
+      update(c);
+      if(++i>=N) clearInterval(t);
+    },35);
+  });
+  update(0);
+})();
+</script>
