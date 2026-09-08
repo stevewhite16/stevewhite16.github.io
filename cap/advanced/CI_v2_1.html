@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confidence interval applet</title>
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f4f7fa; --panel2:#ffffff; --line:#d6dee7; --text:#111418; --muted:#5b6673;
+    --blue:#2f6fd6; --blue2:#1f57b0; --keep:#2f6fd6; --rej:#6b7480; --ink:#111418;
+  }
+  html,body{margin:0;background:var(--bg);color:var(--text);}
+  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.35;}
+  #ci-root{max-width:960px;margin:0 auto;padding:26px 22px 48px;}
+  h1{font-size:26px;font-weight:650;margin:0 0 4px;color:var(--text);letter-spacing:.2px;}
+  .sub{margin:0 0 18px;color:var(--muted);font-size:14.5px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 26px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field .lbl{min-width:0;}
+  .row{display:flex;gap:10px;align-items:center;}
+  .lbl{font-size:13px;color:var(--muted);white-space:nowrap;}
+  .lbl b{color:var(--text);font-weight:600;}
+  input[type=range]{flex:1;accent-color:var(--blue);min-width:90px;}
+  .val{font-size:14.5px;font-variant-numeric:tabular-nums;min-width:44px;text-align:right;color:var(--text);}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+  button{font:inherit;font-size:13px;padding:7px 13px;border-radius:8px;border:1px solid #c6cfd9;background:var(--panel2);color:var(--text);cursor:pointer;}
+  button:hover{border-color:var(--blue);color:var(--blue);}
+  button.primary{background:var(--blue);border-color:var(--blue2);color:#fff;}
+  button.primary:hover{background:var(--blue2);color:#fff;}
+  .seg{display:inline-flex;border:1px solid #c6cfd9;border-radius:8px;overflow:hidden;}
+  .seg label{padding:6px 11px;font-size:13px;cursor:pointer;color:var(--text);background:var(--panel2);border-right:1px solid #c6cfd9;}
+  .seg label:last-child{border-right:none;}
+  .seg input{display:none;}
+  .seg input:checked+span{color:#fff;}
+  .seg label:has(input:checked){background:var(--blue);}
+  .chk{font-size:13px;color:var(--muted);display:inline-flex;gap:6px;align-items:center;cursor:pointer;}
+  .chk input{accent-color:var(--blue);}
+  .spacer{flex:1;}
+  svg{display:block;width:100%;height:auto;margin:6px 0 2px;}
+  .cand{margin:8px 0 10px;}
+  .cand .lbl{min-width:0;}
+  .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px;}
+  .cell{display:flex;flex-direction:column;gap:2px;}
+  .k{font-size:11.5px;color:var(--muted);letter-spacing:.2px;}
+  .v{font-size:16px;font-variant-numeric:tabular-nums;color:var(--text);}
+  .rej{color:var(--rej);font-weight:600;}
+  .keep{color:var(--keep);font-weight:600;}
+  .amber{color:var(--ink);}
+  .note{font-size:13px;color:var(--muted);margin-top:14px;}
+  .note b{color:var(--text);}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;color:var(--text);}
+</style>
+</head>
+<body>
+
+
+<div id="ci-root">
+  <h1>Confidence interval applet</h1>
+  <p class="sub">A confidence interval is the list of hypothesized differences that the data would <em>not</em> reject. Slide the candidate H<sub>0</sub> along the axis (or click and drag on the track), or sweep them all, and watch the list build.</p>
+
+  <div class="panel">
+    <div class="grid">
+      <div class="field"><span class="lbl">observed difference <b>x̄<sub>T</sub> − x̄<sub>C</sub></b></span><div class="row"><input id="obs" type="range" min="-6" max="6" step="0.1" value="-2"><span class="val" id="obsval">-2.0</span></div></div>
+      <div class="field"><span class="lbl">standard deviation <b>s</b> (same in each arm)</span><div class="row"><input id="sd" type="range" min="1" max="12" step="0.5" value="5.5"><span class="val" id="sdval">5.5</span></div></div>
+      <div class="field"><span class="lbl"><b>n</b> per arm</span><div class="row"><input id="n" type="range" min="8" max="200" step="1" value="25"><span class="val" id="nval">25</span></div></div>
+    </div>
+    <div class="toolbar">
+      <span class="lbl" style="min-width:0">α</span>
+      <span class="seg">
+        <label><input type="radio" name="alpha" value="0.10"><span>0.10</span></label>
+        <label><input type="radio" name="alpha" value="0.05" checked><span>0.05</span></label>
+        <label><input type="radio" name="alpha" value="0.01"><span>0.01</span></label>
+      </span>
+      <span class="lbl" style="min-width:0;margin-left:10px">presets</span>
+      <button id="p2">practice #2 (n = 25)</button>
+      <button id="p3">practice #3 (n = 125)</button>
+      <button id="ptms">Croarkin TMS (≈)</button>
+      <span class="spacer"></span>
+      <label class="chk"><input id="auto" type="checkbox"> auto-sweep after a change</label>
+    </div>
+  </div>
+
+  <svg id="plot" viewBox="0 0 720 340" role="img" aria-label="A bell curve centered on a candidate null value slides along a fixed axis; a vertical line marks the observed difference. Candidates the data reject are painted gray on a track below the axis, candidates not rejected are painted blue; the blue band is the confidence interval."></svg>
+
+  <div class="row cand">
+    <span class="lbl">candidate H<sub>0</sub> (hypothesized true difference)</span>
+    <input id="mu" type="range" min="-14" max="14" step="0.1" value="0">
+    <span class="val" id="muval">0.0</span>
+    <button id="sweep" class="primary">Sweep all candidates</button>
+    <button id="reset">Clear track</button>
+  </div>
+
+  <div class="panel readout">
+    <div class="cell"><span class="k">standard error = s·√(2/n)</span><span class="v" id="seval">—</span></div>
+    <div class="cell"><span class="k">z = (observed − candidate) / SE</span><span class="v" id="zval">—</span></div>
+    <div class="cell"><span class="k">two-sided p</span><span class="v" id="pval">—</span></div>
+    <div class="cell"><span class="k">verdict at this α</span><span class="v" id="verdict">—</span></div>
+    <div class="cell"><span class="k">not rejected so far</span><span class="v keep" id="acc">—</span></div>
+    <div class="cell"><span class="k">formula: observed ± z<sub>α</sub>·SE</span><span class="v amber" id="formula">sweep to reveal</span></div>
+  </div>
+
+  <p class="note"><b>Reading the picture.</b> The blue curve is the sampling distribution of x̄<sub>T</sub> − x̄<sub>C</sub> <em>if the candidate were the true difference</em>; the gray tails are its rejection region at the chosen α. If the black line (what you actually observed) lands in a shaded tail, that candidate is rejected. Larger n or smaller s shrinks the SE, narrows the curve, and shortens the blue band. Practice #2 and #3 use one pooled SD of 5.5 (the slides use 6 and 5), so SE is within 0.01 of the slide values; the TMS preset uses SD ≈ 11 and n ≈ 51, which lands near the paper’s −4.2 to 3.3.</p>
+</div>
+
+<script>
+(function(){
+  // ----- fixed geometry (option A: fixed axis) -----
+  const VMIN=-14, VMAX=14, X0=48, X1=672, K=(X1-X0)/(VMAX-VMIN);
+  const BASE=246, PEAK=150, TRACK_Y=286, TRACK_H=11, BRACKET_Y=318;
+  const CMIN=-14, CMAX=14, STEP=0.1, N=Math.round((CMAX-CMIN)/STEP)+1;
+  const ZTAB={"0.10":1.644854,"0.05":1.959964,"0.01":2.575829};
+
+  // ----- state -----
+  let obs=-2, sd=5.5, n=25, alpha="0.05", mu=0;
+  let visited=new Array(N).fill(false), sweepDone=false, timer=null, debounce=null;
+
+  const $=id=>document.getElementById(id);
+  const SE=()=>sd*Math.sqrt(2/n);
+  const ZC=()=>ZTAB[alpha];
+  const px=v=>X0+(v-VMIN)*K;
+  const py=(v,m,se)=>BASE-PEAK*Math.exp(-0.5*Math.pow((v-m)/se,2));
+  const rejected=c=>Math.abs((obs-c)/SE())>ZC();
+  const f1=x=>(x<0?"−":"")+Math.abs(x).toFixed(1);
+  const f2=x=>(x<0?"−":"")+Math.abs(x).toFixed(2);
+
+  function normCdf(z){
+    const t=1/(1+0.2316419*Math.abs(z));
+    const d=0.3989423*Math.exp(-z*z/2);
+    const p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+    return z>0?1-p:p;
+  }
+
+  function curvePts(m,se,lo,hi,dz){
+    const pts=[];
+    for(let z=lo;z<=hi+1e-9;z+=dz){
+      const v=m+z*se;
+      if(v<VMIN||v>VMAX) continue;
+      pts.push([px(v),py(v,m,se)]);
+    }
+    return pts;
+  }
+  function tailPath(m,se,lo,hi){
+    const pts=curvePts(m,se,lo,hi,0.05);
+    if(pts.length<2) return "";
+    let d="M"+pts[0][0].toFixed(1)+","+BASE;
+    pts.forEach(p=>d+="L"+p[0].toFixed(1)+","+p[1].toFixed(1));
+    return d+"L"+pts[pts.length-1][0].toFixed(1)+","+BASE+"Z";
+  }
+
+  function render(){
+    const se=SE(), zc=ZC();
+    let s="";
+    // axis
+    s+='<line x1="'+(X0-10)+'" y1="'+BASE+'" x2="'+(X1+10)+'" y2="'+BASE+'" stroke="#5b6673" stroke-width="0.7" opacity="0.9"/>';
+    for(let v=-14;v<=14;v+=2){
+      s+='<line x1="'+px(v).toFixed(1)+'" y1="'+BASE+'" x2="'+px(v).toFixed(1)+'" y2="'+(BASE+5)+'" stroke="#5b6673" stroke-width="0.7" opacity="0.9"/>';
+      s+='<text x="'+px(v).toFixed(1)+'" y="'+(BASE+18)+'" text-anchor="middle" font-size="12" fill="#5b6673">'+v+'</text>';
+    }
+    // rejection tails + curve
+    s+='<path d="'+tailPath(mu,se,-4,-zc)+'" fill="#9aa5b1" fill-opacity="0.45"/>';
+    s+='<path d="'+tailPath(mu,se,zc,4)+'" fill="#9aa5b1" fill-opacity="0.45"/>';
+    const pts=curvePts(mu,se,-4,4,0.05).map(p=>p[0].toFixed(1)+","+p[1].toFixed(1));
+    s+='<polyline points="'+pts.join(" ")+'" fill="none" stroke="#2f6fd6" stroke-width="2.2" stroke-linejoin="round"/>';
+    s+='<line x1="'+px(mu).toFixed(1)+'" y1="'+(BASE-PEAK+2)+'" x2="'+px(mu).toFixed(1)+'" y2="'+BASE+'" stroke="#5b6673" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>';
+    s+='<text x="'+px(mu).toFixed(1)+'" y="'+(BASE-PEAK-8)+'" text-anchor="middle" font-size="12" fill="#5b6673">candidate H₀ = '+f1(mu)+'</text>';
+    // observed line
+    const ox=px(obs).toFixed(1);
+    s+='<line x1="'+ox+'" y1="46" x2="'+ox+'" y2="'+BASE+'" stroke="#111418" stroke-width="1.9"/>';
+    s+='<text x="'+ox+'" y="34" text-anchor="middle" font-size="14" font-weight="600" fill="#111418">observed difference = '+f1(obs)+'</text>';
+    // track
+    s+='<rect x="'+px(CMIN).toFixed(1)+'" y="'+TRACK_Y+'" width="'+((CMAX-CMIN)*K).toFixed(1)+'" height="'+TRACK_H+'" rx="3" fill="#e6ebf1"/>';
+    const w=(STEP*K)+0.7;
+    for(let i=0;i<N;i++){
+      if(!visited[i]) continue;
+      const c=CMIN+i*STEP, rej=rejected(c);
+      s+='<rect x="'+(px(c)-w/2).toFixed(1)+'" y="'+TRACK_Y+'" width="'+w.toFixed(1)+'" height="'+TRACK_H+'" fill="'+(rej?"#8a949f":"#2f6fd6")+'" fill-opacity="'+(rej?"0.75":"0.9")+'"/>';
+    }
+    // legend (top right)
+    s+='<rect x="'+(X1-118)+'" y="22" width="10" height="10" rx="2" fill="#8a949f" fill-opacity="0.75"/><text x="'+(X1-103)+'" y="31" font-size="11.5" fill="#5b6673">rejected</text>';
+    s+='<rect x="'+(X1-46)+'" y="22" width="10" height="10" rx="2" fill="#2f6fd6" fill-opacity="0.9"/><text x="'+(X1-31)+'" y="31" font-size="11.5" fill="#5b6673">kept</text>';
+    // pointer
+    s+='<path d="M'+(px(mu)-4.5).toFixed(1)+','+(TRACK_Y-4)+'L'+(px(mu)+4.5).toFixed(1)+','+(TRACK_Y-4)+'L'+px(mu).toFixed(1)+','+(TRACK_Y-11)+'Z" fill="#111418"/>';
+    // bracket (after sweep)
+    if(sweepDone){
+      const lo=obs-zc*se, hi=obs+zc*se;
+      const xl=Math.max(px(lo),X0-10), xh=Math.min(px(hi),X1+10);
+      s+='<line x1="'+xl.toFixed(1)+'" y1="'+BRACKET_Y+'" x2="'+xh.toFixed(1)+'" y2="'+BRACKET_Y+'" stroke="#111418" stroke-width="1.2"/>';
+      s+='<line x1="'+xl.toFixed(1)+'" y1="'+(BRACKET_Y-5)+'" x2="'+xl.toFixed(1)+'" y2="'+(BRACKET_Y+5)+'" stroke="#111418" stroke-width="1.2"/>';
+      s+='<line x1="'+xh.toFixed(1)+'" y1="'+(BRACKET_Y-5)+'" x2="'+xh.toFixed(1)+'" y2="'+(BRACKET_Y+5)+'" stroke="#111418" stroke-width="1.2"/>';
+      s+='<text x="'+((xl+xh)/2).toFixed(1)+'" y="'+(BRACKET_Y+16)+'" text-anchor="middle" font-size="11.5" fill="#111418">observed ± '+zc.toFixed(2)+'·SE = '+f1(lo)+' to '+f1(hi)+'</text>';
+    }
+    $("plot").innerHTML=s;
+  }
+
+  function readouts(){
+    const se=SE(), z=(obs-mu)/se, p=2*normCdf(-Math.abs(z));
+    $("muval").textContent=f1(mu);
+    $("seval").textContent=sd.toFixed(1)+"·√(2/"+n+") = "+se.toFixed(2);
+    $("zval").textContent=f2(z);
+    $("pval").textContent=p<0.0001?"< 0.0001":p.toFixed(4);
+    const vd=$("verdict");
+    if(rejected(mu)){vd.textContent="reject";vd.className="v rej";}
+    else{vd.textContent="do not reject";vd.className="v keep";}
+    let lo=null,hi=null;
+    for(let k=0;k<N;k++){
+      if(!visited[k]) continue;
+      const c=CMIN+k*STEP;
+      if(rejected(c)) continue;
+      if(lo===null||c<lo) lo=c;
+      if(hi===null||c>hi) hi=c;
+    }
+    $("acc").textContent=(lo===null)?"none yet":f1(lo)+" to "+f1(hi);
+    const zc=ZC();
+    $("formula").textContent=sweepDone?(f1(obs)+" ± "+zc.toFixed(2)+"×"+se.toFixed(2)+" = "+f1(obs-zc*se)+" to "+f1(obs+zc*se)):"sweep to reveal";
+  }
+
+  function setMu(m){
+    mu=m;
+    const i=Math.round((mu-CMIN)/STEP);
+    if(i>=0&&i<N) visited[i]=true;
+    render(); readouts();
+  }
+
+  function stopSweep(){ if(timer){clearInterval(timer);timer=null;} }
+
+  function sweep(){
+    stopSweep();
+    visited.fill(false); sweepDone=false;
+    let i=0;
+    timer=setInterval(()=>{
+      // two candidates per frame keeps the whole sweep near two seconds
+      visited[i]=true;
+      i=Math.min(i+1,N-1);
+      const c=CMIN+i*STEP;
+      $("mu").value=c.toFixed(1);
+      setMu(c);
+      if(++i>=N){ stopSweep(); sweepDone=true; render(); readouts(); }
+    },12);
+  }
+
+  function inputsChanged(){
+    stopSweep(); clearTimeout(debounce);
+    visited.fill(false); sweepDone=false;
+    $("mu").value="0"; setMu(0);   // any change resets the candidate to H0 = 0
+    if($("auto").checked){
+      clearTimeout(debounce);
+      debounce=setTimeout(sweep,550);
+    }
+  }
+
+  function syncLabels(){
+    $("obsval").textContent=f1(obs); $("sdval").textContent=sd.toFixed(1); $("nval").textContent=n;
+  }
+
+  // ----- wiring -----
+  $("obs").addEventListener("input",()=>{obs=parseFloat($("obs").value);syncLabels();inputsChanged();});
+  $("sd").addEventListener("input",()=>{sd=parseFloat($("sd").value);syncLabels();inputsChanged();});
+  $("n").addEventListener("input",()=>{n=parseInt($("n").value,10);syncLabels();inputsChanged();});
+  document.querySelectorAll('input[name=alpha]').forEach(r=>r.addEventListener("change",()=>{alpha=r.value;inputsChanged();}));
+  $("mu").addEventListener("input",()=>{stopSweep();clearTimeout(debounce);setMu(parseFloat($("mu").value));});
+  $("sweep").addEventListener("click",sweep);
+  $("reset").addEventListener("click",()=>{stopSweep();clearTimeout(debounce);visited.fill(false);sweepDone=false;$("mu").value="0";setMu(0);});
+
+  function preset(o,s,nn){
+    obs=o; sd=s; n=nn;
+    $("obs").value=o; $("sd").value=s; $("n").value=nn;
+    syncLabels(); inputsChanged();
+  }
+  $("p2").addEventListener("click",()=>preset(-2,5.5,25));
+  $("p3").addEventListener("click",()=>preset(-2,5.5,125));
+  $("ptms").addEventListener("click",()=>preset(-0.5,11,51));
+
+  // ----- click / drag on the track (or the axis) to move H0 -----
+  const svg=$("plot");
+  let dragging=false;
+  function svgValue(ev){
+    const pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY;
+    const q=pt.matrixTransform(svg.getScreenCTM().inverse());
+    return {v:VMIN+(q.x-X0)/K, y:q.y};
+  }
+  function onTrack(y){ return y>=BASE-8 && y<=TRACK_Y+TRACK_H+10; }   // axis labels + pointer + track
+  function moveTo(v){
+    v=Math.round(Math.min(CMAX,Math.max(CMIN,v))*10)/10;
+    stopSweep(); clearTimeout(debounce);
+    $("mu").value=v.toFixed(1); setMu(v);
+  }
+  svg.style.touchAction="none";
+  svg.addEventListener("pointerdown",ev=>{
+    const {v,y}=svgValue(ev);
+    if(!onTrack(y)) return;
+    dragging=true; svg.setPointerCapture(ev.pointerId); moveTo(v); ev.preventDefault();
+  });
+  svg.addEventListener("pointermove",ev=>{
+    if(dragging){ moveTo(svgValue(ev).v); return; }
+    svg.style.cursor=onTrack(svgValue(ev).y)?"pointer":"default";
+  });
+  const endDrag=ev=>{ dragging=false; };
+  svg.addEventListener("pointerup",endDrag); svg.addEventListener("pointercancel",endDrag);
+
+  syncLabels(); setMu(0);
+})();
+</script>
+
+</body>
+</html>
